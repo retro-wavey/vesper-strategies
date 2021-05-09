@@ -71,9 +71,8 @@ def amount(accounts, token, user, user2, whale, vault, gov):
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     mega = 1000 * 10 ** token.decimals()
-    vault.setDepositLimit(mega, {"from": gov} )
     token.transfer(user, amount, {"from": whale})
-    token.transfer(user2, mega, {"from": whale})
+    #token.transfer(user2, mega, {"from": whale})
     yield amount
 
 
@@ -119,11 +118,9 @@ def strategy(strategist, keeper, vault, live_strategy, StrategyVesper, gov, want
         vault,
         want_pool,
         pool_rewards,
-        vsp,
-        uni_router,
-        sushi_router,
         1e16,
-        False
+        0,
+        50 # 50%
     )
     strategy.setKeeper(keeper)
     # Empty debtRatio from other strats to make room

@@ -130,8 +130,10 @@ def weth():
 
 
 @pytest.fixture
-def weth_amout(gov, weth):
+def weth_amout(gov, weth, accounts):
     weth_amout = 10 ** weth.decimals()
+    a = accounts[7]
+    a.transfer(gov, "10 ether")
     gov.transfer(weth, weth_amout)
     yield weth_amout
 
@@ -179,13 +181,10 @@ def wbtc_strategy(strategist, keeper, wbtc_vault, StrategyVesper, gov, want_pool
         wbtc_vault,
         want_pool,
         pool_rewards,
-        vsp,
-        uni_router,
-        sushi_router,
         1e16,
-        False
+        0,
+        50 # 50%
     )
-    strategy.setKeeper(keeper)
     
     debt_ratio = 10_000               # 100%
     minDebtPerHarvest = 0             # Lower limit on debt add

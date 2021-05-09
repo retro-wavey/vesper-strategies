@@ -63,46 +63,42 @@ contract StrategyVesper is BaseStrategy {
     // Vesper vault strategies: https://medium.com/vesperfinance/vesper-grow-strategies-today-and-tomorrow-8bd7b907ba5
     address public wantPool;
     address public poolRewards;
-    address public vsp;
-    address public uniRouter;
-    address public sushiRouter;
     address public activeDex;
     uint256 public minToSell;
-    bool public harvestPoolProfits;
+    uint256 public lossProtectionBalance;
+    uint256 public percentKeep;
     bool public isOriginal = true;
 
-    address public constant weth =          address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    uint256 public constant DENOMINATOR =   1e30;
+    address public constant weth        = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address public constant vsp         = address(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
+    address public constant uniRouter   = address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+    address public constant sushiRouter = address(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+    uint256 public constant DENOMINATOR = 1e30;
+    uint256 public constant BIPS        = 100;
 
     constructor(
         address _vault,
         address _wantPool,
         address _poolRewards,
-        address _vsp,
-        address _uniRouter,
-        address _sushiRouter,
         uint256 _minToSell,
-        bool _harvestPoolProfits
+        uint256 _lossProtectionBalance,
+        uint256 _percentKeep
     ) public BaseStrategy(_vault) {
         _initializeThis(
             _wantPool,
             _poolRewards,
-            _vsp,
-            _uniRouter,
-            _sushiRouter,
             _minToSell,
-            _harvestPoolProfits
+            _lossProtectionBalance,
+            _percentKeep
         );
     }
 
     function _initializeThis(
         address _wantPool,
         address _poolRewards,
-        address _vsp,
-        address _uniRouter,
-        address _sushiRouter,
         uint256 _minToSell,
-        bool _harvestPoolProfits
+        uint256 _lossProtectionBalance,
+        uint256 _percentKeep
     ) internal {
         require(
             address(wantPool) == address(0),
@@ -111,12 +107,10 @@ contract StrategyVesper is BaseStrategy {
 
         wantPool = _wantPool;
         poolRewards = _poolRewards;
-        vsp = _vsp;
-        uniRouter = _uniRouter;
-        sushiRouter = _sushiRouter;
-        activeDex = _sushiRouter;
+        activeDex = sushiRouter;
         minToSell = _minToSell;
-        harvestPoolProfits = _harvestPoolProfits;
+        lossProtectionBalance = _lossProtectionBalance;
+        percentKeep = _percentKeep;
         
         IERC20(vsp).approve(sushiRouter, uint256(-1));
         IERC20(vsp).approve(uniRouter, uint256(-1));
@@ -130,22 +124,18 @@ contract StrategyVesper is BaseStrategy {
         address _keeper,
         address _wantPool,
         address _poolRewards,
-        address _vsp,
-        address _uniRouter,
-        address _sushiRouter,
         uint256 _minToSell,
-        bool _harvestPoolProfits
+        uint256 _lossProtectionBalance,
+        uint256 _percentKeep
     ) internal {
         // Parent initialize contains the double initialize check
         super._initialize(_vault, _strategist, _rewards, _keeper);
         _initializeThis(
             _wantPool,
             _poolRewards,
-            _vsp,
-            _uniRouter,
-            _sushiRouter,
             _minToSell,
-            _harvestPoolProfits
+            _lossProtectionBalance,
+            _percentKeep
         );
     }
 
@@ -156,11 +146,9 @@ contract StrategyVesper is BaseStrategy {
         address _keeper,
         address _wantPool,
         address _poolRewards,
-        address _vsp,
-        address _uniRouter,
-        address _sushiRouter,
         uint256 _minToSell,
-        bool _harvestPoolProfits
+        uint256 _lossProtectionBalance,
+        uint256 _percentKeep
     ) external {
         _initialize(
             _vault,
@@ -169,11 +157,9 @@ contract StrategyVesper is BaseStrategy {
             _keeper,
             _wantPool,
             _poolRewards,
-            _vsp,
-            _uniRouter,
-            _sushiRouter,
             _minToSell,
-            _harvestPoolProfits
+            _lossProtectionBalance,
+            _percentKeep
         );
     }
 
@@ -184,11 +170,9 @@ contract StrategyVesper is BaseStrategy {
         address _keeper,
         address _wantPool,
         address _poolRewards,
-        address _vsp,
-        address _uniRouter,
-        address _sushiRouter,
         uint256 _minToSell,
-        bool _harvestPoolProfits
+        uint256 _lossProtectionBalance,
+        uint256 _percentKeep
     ) external returns (address newStrategy) {
         require(isOriginal, "Clone inception!");
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
@@ -215,11 +199,9 @@ contract StrategyVesper is BaseStrategy {
             _keeper,
             _wantPool,
             _poolRewards,
-            _vsp,
-            _uniRouter,
-            _sushiRouter,
             _minToSell,
-            _harvestPoolProfits
+            _lossProtectionBalance,
+            _percentKeep
         );
     }
 
@@ -245,7 +227,7 @@ contract StrategyVesper is BaseStrategy {
         return totalWant.add(calcWantHeldInVesper());
     }
 
-    function calcWantHeldInVesper() internal view returns (uint256 wantBalance) {
+    function calcWantHeldInVesper() public view returns (uint256 wantBalance) {
         wantBalance = 0;
         uint256 shares = IVesperPool(wantPool).balanceOf(address(this));
         if(shares > 0){
@@ -264,7 +246,6 @@ contract StrategyVesper is BaseStrategy {
             uint256 _debtPayment
         )
     {
-        
         _debtPayment = _debtOutstanding; // default is to pay the full debt
 
         // Here we begin doing stuff to make our profits
@@ -276,34 +257,29 @@ contract StrategyVesper is BaseStrategy {
         if(vspBal > minToSell){
             _sell(vspBal);
         }
-
-        uint256 wantBalance = want.balanceOf(address(this));
-        uint256 inVesper = calcWantHeldInVesper();
-        uint256 assets = inVesper.add(wantBalance);
-        uint256 debt = vault.strategies(address(this)).totalDebt;
         
+        uint256 unprotectedWant = skim(); // Returns usable balance after skimming for loss protection
+        uint256 inVesper = calcWantHeldInVesper();
+        uint256 assets = inVesper.add(unprotectedWant).add(lossProtectionBalance);
+        uint256 debt = vault.strategies(address(this)).totalDebt;
         if(debt < assets){
-            // Check whether we should "unhide" profits either because strategist/gov
-            // says so, or because vault is trying to get all it's debt back 
-            // (e.g. debtRatio was set to 0).
-            if(harvestPoolProfits || _debtOutstanding >= debt){
+            // Check whether we should "unhide" all profits because vault is trying 
+            // to get all it's debt back (e.g. debtRatio was set to 0%).
+            if(_debtOutstanding >= debt){
                 _profit = assets.sub(debt);
             }
             else{
-                if(debt <= inVesper){
+                if(debt <= inVesper + 1){ // 1 for rounding errors
                     // Here we ignore pool profits and only count
                     // profits from VSP farming. This is intentional and is done
-                    // to help make harvests much cheaper.
-                    // as we won't have to free up pool profits
-                    // each time and suffer the Vesper withdrawalFee. 
+                    // to help make harvests much cheaper as we won't have to free up 
+                    // pool profits each time and suffer the Vesper withdrawalFee. 
                     // Pool APR is very small compared to VSP rewards.
-                    _profit = wantBalance;
+                    _profit = unprotectedWant;
                 }
                 else{ 
-                    // Edge case where we've lost small money in the pool, 
-                    // but at overall profit when rewards are added. Here we
-                    // effectively only recognize partial amount of thhe rewards as 
-                    // profit and leave the rest available to re-invest or pay debt.
+                    // Edge case where we've lost money by being in the Vesper pool. 
+                    // In this case we will expose hidden profits to make up for loss.
                     _profit = assets.sub(debt);
                 }
             }
@@ -314,45 +290,20 @@ contract StrategyVesper is BaseStrategy {
 
         // We want to free up enough to pay profits + debt
         uint256 toFree = _debtOutstanding.add(_profit);
-
-        if(toFree > wantBalance){
-            toFree = toFree.sub(wantBalance);
-
+        if(toFree > unprotectedWant){
+            toFree = toFree.sub(unprotectedWant);
             (uint256 liquidatedAmount, uint256 withdrawalLoss) = withdrawSome(toFree);
-            wantBalance = wantBalance.add(liquidatedAmount);
+            unprotectedWant = unprotectedWant.add(liquidatedAmount);
 
             if(withdrawalLoss < _profit){
                 _profit = _profit.sub(withdrawalLoss);
-                _debtPayment = wantBalance.sub(_profit);
+                _debtPayment = unprotectedWant.sub(_profit);
             }
             else{
                 _loss = _loss.add(withdrawalLoss.sub(_profit));
                 _profit = 0;
-                _debtPayment = want.balanceOf(address(this));
+                _debtPayment = want.balanceOf(address(this)).sub(lossProtectionBalance);
             }
-        }
-    }
-
-    function withdrawSome(uint256 _amount) internal returns (uint256 _liquidatedAmount, uint256 _loss) {
-        uint256 wantBalanceBefore = want.balanceOf(address(this));
-        uint256 vaultBalance = IERC20(wantPool).balanceOf(address(this)); // Vesper pool shares
-        
-        if(vaultBalance > 1){ // 1 not 0 because of possible rounding errors
-            // Convert amount to Vesper shares.
-            uint256 sharesToWithdraw = _amount
-                    .mul(DENOMINATOR)
-                    .div(morePrecisePricePerShare());
-            sharesToWithdraw = Math.min(sharesToWithdraw, vaultBalance);
-            IVesperPool(wantPool).withdraw(sharesToWithdraw);
-        }
-
-        uint256 withdrawnAmount = want.balanceOf(address(this)).sub(wantBalanceBefore);
-        if(withdrawnAmount >= _amount){
-            _liquidatedAmount = _amount;
-        }
-        else{
-            _liquidatedAmount = withdrawnAmount;
-            _loss = _amount.sub(withdrawnAmount);
         }
     }
 
@@ -361,7 +312,7 @@ contract StrategyVesper is BaseStrategy {
             return;
         }
         
-        uint256 wantBal = want.balanceOf(address(this));
+        uint256 wantBal = want.balanceOf(address(this)).sub(lossProtectionBalance);
 
         // In case we need to return want to the vault
         if (_debtOutstanding > wantBal) {
@@ -377,13 +328,50 @@ contract StrategyVesper is BaseStrategy {
 
     function liquidatePosition(uint256 _amountNeeded) internal override returns (uint256 _liquidatedAmount, uint256 _loss) {
 
-        uint256 wantBal = want.balanceOf(address(this));
+        uint256 unprotectedWant = want.balanceOf(address(this)).sub(lossProtectionBalance);
 
-        if (_amountNeeded > wantBal) {
+        if (_amountNeeded > unprotectedWant) {
             // Need more want to meet request.
-            (, _loss) = withdrawSome(_amountNeeded.sub(wantBal));
+            (_liquidatedAmount, _loss) = withdrawSome(_amountNeeded.sub(unprotectedWant));
         }
-        _liquidatedAmount = Math.min(_amountNeeded, want.balanceOf(address(this)));
+        _liquidatedAmount = Math.min(_amountNeeded, want.balanceOf(address(this)).sub(lossProtectionBalance));
+    }
+
+    function withdrawSome(uint256 _amount) internal returns (uint256 _liquidatedAmount, uint256 _loss) {
+        uint256 wantBefore = want.balanceOf(address(this));
+        uint256 vesperShares = IERC20(wantPool).balanceOf(address(this)); // Vesper pool shares
+        
+        if(vesperShares > 1){ // 1 not 0 because of possible rounding errors
+            // Convert amount to Vesper shares.
+            uint256 sharesToWithdraw = _amount
+                    .mul(DENOMINATOR)
+                    .div(morePrecisePricePerShare());
+            sharesToWithdraw = Math.min(sharesToWithdraw, vesperShares);
+            IVesperPool(wantPool).withdraw(sharesToWithdraw);
+        }
+
+        _liquidatedAmount = want.balanceOf(address(this)).sub(wantBefore);
+        if(_liquidatedAmount >= _amount){
+            _liquidatedAmount = _amount;
+            _loss = 0;
+        }
+        else{
+            _loss = _amount.sub(_liquidatedAmount);
+            uint256 _lossProtection = lossProtectionBalance; // Local var to save gas
+            // Try to use lossProtectionBalance to pay our loss
+            if(_lossProtection >= _loss){
+                // Here we have enough to cover losses
+                lossProtectionBalance = _lossProtection.sub(_loss);
+                _liquidatedAmount = _liquidatedAmount.add(_loss);
+                _loss = 0;
+            }
+            else{
+                // Here we don't have enough to cover losses
+                _liquidatedAmount = _liquidatedAmount.add(_lossProtection);
+                _loss = _loss.sub(_lossProtection);
+                lossProtectionBalance = 0;
+            }
+        }
     }
 
     function _sell(uint256 _amount) internal {
@@ -400,6 +388,31 @@ contract StrategyVesper is BaseStrategy {
                 path, 
                 address(this), 
             now);
+    }
+
+    function skim() internal returns(uint256){ // Returns unprotected want balance
+        uint256 fullBalance = want.balanceOf(address(this));
+        if(percentKeep == 0) return fullBalance.sub(lossProtectionBalance);
+        uint256 _lossProtection = lossProtectionBalance; // Use local var to save gas
+        uint256 protectionNeeded = calculateProtectionNeeded();
+        uint256 toKeep = fullBalance.sub(_lossProtection).mul(percentKeep).div(BIPS);
+        _lossProtection = _lossProtection.add(toKeep);
+        if(_lossProtection >= protectionNeeded){
+            // Handle edge case to make sure we don't keep more than we need to
+            uint256 overflow = _lossProtection.sub(protectionNeeded);
+            lossProtectionBalance = _lossProtection.sub(overflow);
+            return fullBalance.sub(lossProtectionBalance);
+        }
+        lossProtectionBalance = _lossProtection;
+        return fullBalance.sub(_lossProtection); // Returns unlocked balance
+    }
+
+    function calculateProtectionNeeded() public returns(uint256){
+        uint256 fee = IVesperPool(wantPool).withdrawFee(); // 1e18 denominated
+        // Fetch total debt in strategy
+        uint256 debt = vault.strategies(address(this)).totalDebt;
+        // Calculate fee impact
+        return debt.mul(fee).div(1e18);
     }
 
     function prepareMigration(address _newStrategy) internal override {
@@ -458,14 +471,22 @@ contract StrategyVesper is BaseStrategy {
         }
     }
 
-    function toggleHarvestPoolProfits() external onlyAuthorized {
-        harvestPoolProfits = !harvestPoolProfits;
-    }
-
     function setMinToSell(uint256 _minToSell) external onlyAuthorized {
         require(_minToSell < 1e20, "!tooBig");
         require(_minToSell > 1e14, "!tooSmall");
         minToSell = _minToSell;
+    }
+
+    function releaseProtectedBalance() external onlyGovernance {
+        // This function should be handled with care.
+        // To be used only in extreme circumstances when prtoected
+        // balance is no longer necessary (e.g. disbaled withdraw fee)
+        lossProtectionBalance = 0;
+    }
+
+    function setPercentKeep(uint256 _percentKeep) external onlyAuthorized {
+        require(_percentKeep <= 10000, "!tooBig");
+        percentKeep = _percentKeep;
     }
 
     function protectedTokens() internal view override returns (address[] memory) {

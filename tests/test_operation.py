@@ -12,13 +12,17 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
     assert token.balanceOf(vault.address) >= amount
     vaultData(vault, token)
     stratData(strategy, token, want_pool, vsp)
+    assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
 
     # harvest 1: funds to strat
+    print("\n**Harvest 1**")
     strategy.harvest({"from": strategist})
     chain.mine(1)
     vaultData(vault, token)
     stratData(strategy, token, want_pool, vsp)
+    print("Loss Protection Balance:", strategy.lossProtectionBalance())
     assert strategy.estimatedTotalAssets()+1 >= amount
+    assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
     
     # Harvest 2: Allow rewards to be earned
     print("\n**Harvest 2**")
@@ -27,26 +31,59 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
     strategy.harvest({"from": strategist})
     vaultData(vault, token)
     stratData(strategy, token, want_pool, vsp)
-
+    print("Loss Protection Balance:", strategy.lossProtectionBalance())
     print("\nEst APR: ", "{:.2%}".format(
             ((vault.totalAssets() - amount) * 365) / (amount)
         )
     )
+    assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
 
     # Harvest 3
     print("\n**Harvest 3**")
     chain.sleep(one_day)
     chain.mine(1)
-    strategy.toggleHarvestPoolProfits({"from": strategist})
     strategy.harvest({"from": strategist})
     vaultData(vault, token)
     stratData(strategy, token, want_pool, vsp)
-
+    print("Loss Protection Balance:", strategy.lossProtectionBalance())
     # Current contract has rewards emissions ending on Mar 19, so we shouldnt project too far
     print("\nEst APR: ", "{:.2%}".format(
             ((vault.totalAssets() - amount) * 365/2) / (amount)
         )
     )
+    assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
+
+    print("\n**Check Debt Ratio Change**")
+    before_balance = strategy.estimatedTotalAssets()
+    vault.updateStrategyDebtRatio(strategy.address, 50, {"from": gov}) # 5%
+    strategy.harvest({"from": strategist})
+    # ^ Anytime we reduce debtRatio then harvest, we suffer _loss 
+    # because of withdrawFee. Here the debtRatio actually goes below target
+    # because of penalty on loss
+    after_balance = strategy.estimatedTotalAssets()
+    print("before_balance:", before_balance)
+    print("after_balance:", strategy.estimatedTotalAssets())
+    assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
+    assert before_balance > after_balance
+    stratData(strategy, token, want_pool, vsp)
+
+    chain.snapshot()
+    vault.updateStrategyDebtRatio(strategy.address, 10_000, {"from": gov})
+    strategy.harvest({"from": strategist})
+    chain.sleep(one_day)
+    chain.mine(1)
+    strategy.harvest({"from": strategist})
+    strategy.harvest({"from": strategist}) # All funds to strat
+    before = strategy.lossProtectionBalance()
+    vault.withdraw(vault.balanceOf(user)/100_000,user,61,{"from": user})
+    # Test that user withdraw pulls from loss protection
+    assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
+    assert strategy.lossProtectionBalance() < before
+
+
+    
+    strategy.harvest({"from": strategist})
+
 
     # Harvest 4
     print("\n**Harvest 4**")
@@ -55,17 +92,18 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
     strategy.harvest({"from": strategist})
     vaultData(vault, token)
     stratData(strategy, token, want_pool, vsp)
-
+    print("Loss Protection Balance:", strategy.lossProtectionBalance())
     # Current contract has rewards emissions ending on Mar 19, so we shouldnt project too far
     print("\nEst APR: ", "{:.2%}".format(
             ((vault.totalAssets() - amount) * 365/3) / (amount)
         )
     )
 
-    # Harves 5
+    # Harvest 5
     print("\n**Harvest 5**")
     chain.sleep(3600) # wait six hours for a profitable withdraw
     vault.withdraw(vault.balanceOf(user),user,61,{"from": user}) # Need more loss protect to handle 0.6% withdraw fee
+    print("After Withdraw - Loss Protection Balance:", strategy.lossProtectionBalance())
     vaultData(vault, token)
     stratData(strategy, token, want_pool, vsp)
     assert token.balanceOf(user) > amount * 0.994 * .78 # Ensure profit was made after withdraw fee
@@ -78,12 +116,6 @@ def test_switch_dex(accounts, token, vault, strategy, strategist, amount, user, 
     strategy.toggleActiveDex({"from": gov})
     newDex = strategy.activeDex()
     assert originalDex != newDex
-
-def test_toggle_harvest_all(accounts, token, vault, strategy, strategist, amount, user, want_pool, chain, gov, vsp):
-    originalVal = strategy.harvestPoolProfits()
-    strategy.toggleHarvestPoolProfits({"from": strategist})
-    newVal = strategy.harvestPoolProfits()
-    assert originalVal != newVal
 
 def test_emergency_exit(accounts, token, vault, strategy, strategist, amount, user):
     # Deposit to the vault

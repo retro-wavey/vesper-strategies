@@ -9,7 +9,7 @@ def test_operation(StrategyVesper, accounts, token, vault, live_strategy, strate
     #live_strategy.harvest({"from": gov}) # Do this just bc this strategy needs to empty its funds
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
-    vault.deposit(amount, {"from": user})
+    vault.deposit(amount/2, {"from": user})
     assert token.balanceOf(vault.address) >= amount
     vaultData(vault, token)
     stratData(strategy, token, vToken, vsp)
@@ -29,6 +29,9 @@ def test_operation(StrategyVesper, accounts, token, vault, live_strategy, strate
     strategy.harvest({"from": strategist})
     chain.sleep(3600 * 6) # Unlock profits
     chain.mine(1)
+    print("Loss Protection Balance:", strategy.lossProtectionBalance())
+    assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
+    
     after_balance = strategy.estimatedTotalAssets() + token.balanceOf(vault)
     print("before_balance:", before_balance)
     print("after_balance:", after_balance)
@@ -36,9 +39,17 @@ def test_operation(StrategyVesper, accounts, token, vault, live_strategy, strate
 
     # Harvest 3
     print("\n**Check Profitable Withdraw**")
-    chain.sleep(3600) # wait six hours for a profitable withdraw
     strategy.harvest({"from": strategist})
+    chain.sleep(3600) # wait six hours for a profitable withdraw
+    # Let's put our strategy to front of the queue so that we can test impact by withdraws
+    for s in range(0, 4):
+        strat = Contract(vault.withdrawalQueue(s))
+        vault.updateStrategyDebtRatio(strat, 0, {'from':gov})
+        strat.harvest({'from':gov})
+    vault.updateStrategyDebtRatio(strategy,10_000, {'from':gov})
+    assert False
     vault.withdraw(vault.balanceOf(user),user,61,{"from": user}) # Need more loss protect to handle 0.6% withdraw fee
+    assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
     print("deposit amount:", amount)
     print("withdrawn amount:", token.balanceOf(user))
     after_withdraw_fee = amount * 0.94
@@ -88,11 +99,9 @@ def test_operation(StrategyVesper, accounts, token, vault, live_strategy, strate
         vault,
         vToken,
         pool_rewards,
-        vsp,
-        uni_router,
-        sushi_router,
         1e16,
-        False
+        0,
+        50 # 50%
     )
     new_est_assets_before = new_strategy.estimatedTotalAssets()
 
