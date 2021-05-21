@@ -286,13 +286,6 @@ contract StrategyVesper is BaseStrategy {
                 }
             }
         }
-        else{ // This is bad, would imply strategy is net negative
-            if(_debtOutstanding == 0){
-                // only record a loss here if we won't be entering the code block below
-                // where a loss will be recorded upon withdrawal attempt.
-                _loss = debt.sub(assets);
-            }
-        }
 
         // We want to free up enough to pay profits + debt
         uint256 toFree = _debtOutstanding.add(_profit);
@@ -306,7 +299,7 @@ contract StrategyVesper is BaseStrategy {
                 _debtPayment = unprotectedWant.sub(_profit);
             }
             else{
-                _loss = _loss.add(withdrawalLoss.sub(_profit));
+                _loss = withdrawalLoss.sub(_profit);
                 _profit = 0;
                 _debtPayment = want.balanceOf(address(this)).sub(lossProtectionBalance);
             }
