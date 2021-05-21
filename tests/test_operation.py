@@ -55,7 +55,8 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
 
     print("\n**Check Debt Ratio Change**")
     before_balance = strategy.estimatedTotalAssets()
-    vault.updateStrategyDebtRatio(strategy.address, 50, {"from": gov}) # 5%
+    chain.snapshot()
+    vault.updateStrategyDebtRatio(strategy.address, 500, {"from": gov}) # 5%
     strategy.harvest({"from": strategist})
     # ^ Anytime we reduce debtRatio then harvest, we suffer _loss 
     # because of withdrawFee. Here the debtRatio actually goes below target
@@ -67,7 +68,6 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
     assert before_balance > after_balance
     stratData(strategy, token, want_pool, vsp)
 
-    chain.snapshot()
     vault.updateStrategyDebtRatio(strategy.address, 10_000, {"from": gov})
     strategy.harvest({"from": strategist})
     chain.sleep(one_day)
@@ -76,12 +76,17 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
     strategy.harvest({"from": strategist}) # All funds to strat
     before = strategy.lossProtectionBalance()
     vault.withdraw(vault.balanceOf(user)/100_000,user,61,{"from": user})
-    # Test that user withdraw pulls from loss protection
+    # Test that user withdraw pulls partially from loss protection
     assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
     assert strategy.lossProtectionBalance() < before
 
-
+    # Start clean since the debtRatio change test kills our pps
+    chain.revert()
+    assert False
+    vault.balanceOf(user)
+    tx = vault.withdraw(1e6,user,61,{"from": user}) 
     
+    tx = vault.withdraw(1e8,user,61,{"from": user})    
     strategy.harvest({"from": strategist})
 
 
@@ -93,11 +98,6 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
     vaultData(vault, token)
     stratData(strategy, token, want_pool, vsp)
     print("Loss Protection Balance:", strategy.lossProtectionBalance())
-    # Current contract has rewards emissions ending on Mar 19, so we shouldnt project too far
-    print("\nEst APR: ", "{:.2%}".format(
-            ((vault.totalAssets() - amount) * 365/3) / (amount)
-        )
-    )
 
     # Harvest 5
     print("\n**Harvest 5**")

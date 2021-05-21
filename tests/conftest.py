@@ -183,7 +183,7 @@ def wbtc_strategy(strategist, keeper, wbtc_vault, StrategyVesper, gov, want_pool
         pool_rewards,
         1e16,
         0,
-        50 # 50%
+        5_000 # 50%
     )
     
     debt_ratio = 10_000               # 100%

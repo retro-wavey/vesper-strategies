@@ -120,7 +120,7 @@ def strategy(strategist, keeper, vault, live_strategy, StrategyVesper, gov, want
         pool_rewards,
         1e16,
         0,
-        50 # 50%
+        5_000 # 50%
     )
     strategy.setKeeper(keeper)
     # Empty debtRatio from other strats to make room
