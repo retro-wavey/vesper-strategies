@@ -5,28 +5,28 @@ from brownie import Contract
 
 @pytest.fixture
 def token():
-    token_address = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"  # WBTC
+    token_address = "0x514910771AF9Ca656af840dff83E8264EcF986CA"  # LINK
     yield Contract(token_address)
     
 @pytest.fixture
 def vToken():
-    yield Contract("0x4B2e76EbBc9f2923d83F5FBDe695D8733db1a17B")
+    yield Contract("0x0a27E910Aee974D05000e05eab8a4b8Ebd93D40C")
 
 @pytest.fixture
 def vault():
-    yield Contract("0xA696a63cc78DfFa1a63E9E50587C197387FF6C7E") # new
+    yield Contract("0xF962B098Ecc4352aA2AD1d4164BD2b8367fd94c3") # new
 
 @pytest.fixture
 def live_strategy():
-    yield Contract("0x53a65c8e238915c79a1e5C366Bc133162DBeE34f") # This one has 25% ratio
+    yield Contract("0x3aD22Fd9e2cc898d6F77AC12eAc603A77a464c45") # This one has 90% ratio
 
 @pytest.fixture
 def pool_rewards():
-    yield Contract("0x479A8666Ad530af3054209Db74F3C74eCd295f8D")
+    yield Contract("0xcA9AEeB14ff396F8661F7DF3128f88c31D2fDEC5")
 
 @pytest.fixture
 def whale(accounts):
-    yield accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    yield accounts.at("0xbe6977E08D4479C0A6777539Ae0e8fa27BE4e9d6", force=True)
 
 @pytest.fixture
 def user(accounts):
@@ -38,7 +38,8 @@ def user2(accounts):
 
 @pytest.fixture
 def gov(accounts):
-    yield accounts.at("0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52", force=True)   
+    yield accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)  
+    #yield accounts.at("0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52", force=True)   
 
 
 @pytest.fixture
@@ -67,7 +68,7 @@ def keeper(accounts):
 
 @pytest.fixture
 def amount(accounts, token, user, user2, whale, vault, gov):
-    amount = 1 * 10 ** token.decimals()
+    amount = 1000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     mega = 1000 * 10 ** token.decimals()
@@ -120,7 +121,8 @@ def strategy(strategist, keeper, vault, live_strategy, StrategyVesper, gov, want
         pool_rewards,
         1e16,
         0,
-        5_000 # 50%
+        5_000, # 50% percent keep,
+        "Vesper LINK"
     )
     strategy.setKeeper(keeper)
     # Empty debtRatio from other strats to make room
@@ -129,7 +131,7 @@ def strategy(strategist, keeper, vault, live_strategy, StrategyVesper, gov, want
     live_strategy.harvest({"from": gov})
     chain.mine(1)
 
-    debt_ratio = 1_000                 # 98%
+    debt_ratio = 10_000                 # 98%
     minDebtPerHarvest = 0             # Lower limit on debt add
     maxDebtPerHarvest = 2 ** 256 - 1  # Upper limit on debt add
     performance_fee = 1000            # Strategist perf fee: 10%

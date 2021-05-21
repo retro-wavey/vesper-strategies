@@ -82,7 +82,6 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
 
     # Start clean since the debtRatio change test kills our pps
     chain.revert()
-    assert False
     vault.balanceOf(user)
     tx = vault.withdraw(1e6,user,61,{"from": user}) 
     
