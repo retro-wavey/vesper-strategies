@@ -76,8 +76,6 @@ contract StrategyVesper is BaseStrategy {
     uint256 public constant DENOMINATOR = 1e30;
     uint256 public constant BIPS        = 10000;
 
-    event Withdrawn(uint256 _liquidatedAmount, uint256 _loss, uint256 protectionUsed);
-
     constructor(
         address _vault,
         address _wantPool,
@@ -360,7 +358,6 @@ contract StrategyVesper is BaseStrategy {
         else{
             _liquidatedAmount = unprotectedWant.sub(_amountNeeded);
         }
-        emit Withdrawn(_liquidatedAmount, _loss, _lossProtection.sub(lossProtectionBalance));
     }
 
     function withdrawSome(uint256 _amount) internal returns (uint256 _liquidatedAmount, uint256 _loss) {
