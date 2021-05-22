@@ -68,6 +68,7 @@ contract StrategyVesper is BaseStrategy {
     uint256 public lossProtectionBalance;
     uint256 public percentKeep; // Expressed in BIPS. 100% == 10_000
     bool public isOriginal = true;
+    string internal strategyName;
 
     address public constant weth        = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address public constant vsp         = address(0x1b40183EFB4Dd766f11bDa7A7c3AD8982e998421);
@@ -82,14 +83,16 @@ contract StrategyVesper is BaseStrategy {
         address _poolRewards,
         uint256 _minToSell,
         uint256 _lossProtectionBalance,
-        uint256 _percentKeep
+        uint256 _percentKeep,
+        string memory _strategyName
     ) public BaseStrategy(_vault) {
         _initializeThis(
             _wantPool,
             _poolRewards,
             _minToSell,
             _lossProtectionBalance,
-            _percentKeep
+            _percentKeep,
+            _strategyName
         );
     }
 
@@ -98,7 +101,8 @@ contract StrategyVesper is BaseStrategy {
         address _poolRewards,
         uint256 _minToSell,
         uint256 _lossProtectionBalance,
-        uint256 _percentKeep
+        uint256 _percentKeep,
+        string memory _strategyName
     ) internal {
         require(
             address(wantPool) == address(0),
@@ -111,6 +115,7 @@ contract StrategyVesper is BaseStrategy {
         minToSell = _minToSell;
         lossProtectionBalance = _lossProtectionBalance;
         percentKeep = _percentKeep;
+        strategyName = _strategyName;
         
         IERC20(vsp).approve(sushiRouter, uint256(-1));
         IERC20(vsp).approve(uniRouter, uint256(-1));
@@ -126,7 +131,8 @@ contract StrategyVesper is BaseStrategy {
         address _poolRewards,
         uint256 _minToSell,
         uint256 _lossProtectionBalance,
-        uint256 _percentKeep
+        uint256 _percentKeep,
+        string memory _strategyName
     ) internal {
         // Parent initialize contains the double initialize check
         super._initialize(_vault, _strategist, _rewards, _keeper);
@@ -135,7 +141,8 @@ contract StrategyVesper is BaseStrategy {
             _poolRewards,
             _minToSell,
             _lossProtectionBalance,
-            _percentKeep
+            _percentKeep,
+            _strategyName
         );
     }
 
@@ -148,7 +155,8 @@ contract StrategyVesper is BaseStrategy {
         address _poolRewards,
         uint256 _minToSell,
         uint256 _lossProtectionBalance,
-        uint256 _percentKeep
+        uint256 _percentKeep,
+        string memory _strategyName
     ) external {
         _initialize(
             _vault,
@@ -159,7 +167,8 @@ contract StrategyVesper is BaseStrategy {
             _poolRewards,
             _minToSell,
             _lossProtectionBalance,
-            _percentKeep
+            _percentKeep,
+            _strategyName
         );
     }
 
@@ -172,7 +181,8 @@ contract StrategyVesper is BaseStrategy {
         address _poolRewards,
         uint256 _minToSell,
         uint256 _lossProtectionBalance,
-        uint256 _percentKeep
+        uint256 _percentKeep,
+        string memory _strategyName
     ) external returns (address newStrategy) {
         require(isOriginal, "Clone inception!");
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
@@ -201,15 +211,13 @@ contract StrategyVesper is BaseStrategy {
             _poolRewards,
             _minToSell,
             _lossProtectionBalance,
-            _percentKeep
+            _percentKeep,
+            _strategyName
         );
     }
 
     function name() external view override returns (string memory) {
-        return
-            string(
-                abi.encodePacked("Vesper ", IName(address(want)).name())
-            );
+        return strategyName;
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
@@ -425,7 +433,7 @@ contract StrategyVesper is BaseStrategy {
         return fullBalance.sub(_lossProtection); // Returns new unprotected balance
     }
 
-    function calculateProtectionNeeded() public returns(uint256){
+    function calculateProtectionNeeded() public view returns(uint256){
         uint256 fee = IVesperPool(wantPool).withdrawFee(); // 1e18 denominated
         // Fetch total debt in strategy
         uint256 debt = vault.strategies(address(this)).totalDebt;

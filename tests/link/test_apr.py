@@ -56,3 +56,4 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
     stratData(strategy, token, want_pool, vsp)
     print('loss protection:', strategy.lossProtectionBalance()/1e18)
     print('pps:', vault.pricePerShare()/1e18)
+    assert False

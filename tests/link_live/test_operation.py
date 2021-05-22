@@ -42,12 +42,6 @@ def test_operation(StrategyVesper, accounts, token, vault, live_strategy, strate
     strategy.harvest({"from": strategist})
     chain.sleep(3600) # wait six hours for a profitable withdraw
     # Let's put our strategy to front of the queue so that we can test impact by withdraws
-    for s in range(0, 4):
-        strat = Contract(vault.withdrawalQueue(s))
-        vault.updateStrategyDebtRatio(strat, 0, {'from':gov})
-        strat.harvest({'from':gov})
-    vault.updateStrategyDebtRatio(strategy,10_000, {'from':gov})
-    assert False
     vault.withdraw(vault.balanceOf(user),user,61,{"from": user}) # Need more loss protect to handle 0.6% withdraw fee
     assert token.balanceOf(strategy) == strategy.lossProtectionBalance()
     print("deposit amount:", amount)
@@ -101,7 +95,8 @@ def test_operation(StrategyVesper, accounts, token, vault, live_strategy, strate
         pool_rewards,
         1e16,
         0,
-        50 # 50%
+        5_000, # 50% percent keep,
+        "Vesper LINK"
     )
     new_est_assets_before = new_strategy.estimatedTotalAssets()
     

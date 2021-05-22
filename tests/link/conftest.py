@@ -134,7 +134,8 @@ def strategy(strategist, keeper, vault, StrategyVesper, gov, want_pool, pool_rew
         pool_rewards,
         1e16,
         0,
-        10_000 # 50% percent keep
+        10_000, # 50% percent keep,
+        "Vesper LINK"
     )
     strategy.setKeeper(keeper)
     # Empty debtRatio from other strats to make room
