@@ -416,13 +416,13 @@ contract StrategyVesper is BaseStrategy {
         }
         _lossProtection = _lossProtection.add(toKeep);
         if(_lossProtection >= protectionNeeded){
-            // Handle edge case to make sure we don't keep more than we need to
+            // Handle edge case to make sure we free up some protected balance when necessary
+            // This may happen if strategy's debtRatio is lowered, for example
             uint256 overflow = _lossProtection.sub(protectionNeeded);
-            lossProtectionBalance = _lossProtection.sub(overflow);
-            return fullBalance.sub(lossProtectionBalance);
+            _lossProtection = _lossProtection.sub(overflow);
         }
         lossProtectionBalance = _lossProtection;
-        return fullBalance.sub(_lossProtection); // Returns unlocked balance
+        return fullBalance.sub(_lossProtection); // Returns new unprotected balance
     }
 
     function calculateProtectionNeeded() public returns(uint256){
