@@ -42,6 +42,8 @@ def test_operation(accounts, token, vault, strategy, strategist, amount, user, u
     print("\n**Harvest 3**")
     chain.sleep(one_day)
     chain.mine(1)
+    link_whale = accounts.at("0xbe6977E08D4479C0A6777539Ae0e8fa27BE4e9d6", force=True)
+    token.transfer(strategy, 5*1e20,{'from':link_whale})
     strategy.harvest({"from": strategist})
     vaultData(vault, token)
     stratData(strategy, token, want_pool, vsp)
@@ -158,32 +160,32 @@ def test_profitable_harvest(accounts, token, vault, strategy, strategist, amount
     )
     assert strategy.estimatedTotalAssets()+1 > amount
 
-def test_change_debt(gov, wbtc, wbtc_vault, wbtc_strategy, strategist, amount_wbtc, user, want_pool):
+def test_change_debt(gov, wbtc, token, vault, strategy, strategist, amount, user, want_pool):
     # Deposit to the vault and harvest
-    wbtc.approve(wbtc_vault, amount_wbtc, {"from": user})
-    wbtc_vault.deposit(amount_wbtc, {"from": user})
-    wbtc_vault.updateStrategyDebtRatio(wbtc_strategy, 5_000, {"from": gov})
-    wbtc_strategy.harvest({"from": strategist})
+    token.approve(vault, amount, {"from": user})
+    vault.deposit(amount, {"from": user})
+    vault.updateStrategyDebtRatio(strategy, 5_000, {"from": gov})
+    strategy.harvest({"from": strategist})
 
-    assert wbtc_strategy.estimatedTotalAssets()+1 == amount_wbtc / 2
+    assert strategy.estimatedTotalAssets()+1 == amount / 2
 
-    wbtc_vault.updateStrategyDebtRatio(wbtc_strategy, 10_000, {"from": gov})
-    wbtc_strategy.harvest({"from": strategist})
-    assert wbtc_strategy.estimatedTotalAssets()+1 >= amount_wbtc
+    vault.updateStrategyDebtRatio(strategy, 10_000, {"from": gov})
+    strategy.harvest({"from": strategist})
+    assert strategy.estimatedTotalAssets()+1 >= amount
 
 
-def test_sweep(gov, vault, wbtc_strategy, token, amount, weth, weth_amout, vsp, user):
+def test_sweep(gov, vault, strategy, token, amount, weth, weth_amout, vsp, user):
     # Strategy want token doesn't work
-    token.transfer(wbtc_strategy, amount, {"from": user})
-    vsp.transfer(wbtc_strategy, 1e20, {"from": user})
-    assert token.address == wbtc_strategy.want()
-    assert token.balanceOf(wbtc_strategy) > 0
+    token.transfer(strategy, amount, {"from": user})
+    vsp.transfer(strategy, 1e20, {"from": user})
+    assert token.address == strategy.want()
+    assert token.balanceOf(strategy) > 0
     with brownie.reverts("!want"):
-        wbtc_strategy.sweep(token, {"from": gov})
+        strategy.sweep(token, {"from": gov})
 
     # Vault share token doesn't work
     with brownie.reverts("!shares"):
-        wbtc_strategy.sweep(vault.address, {"from": gov})
+        strategy.sweep(vault.address, {"from": gov})
 
     # TODO: If you add protected tokens to the strategy.
     # Protected token doesn't work
@@ -191,14 +193,14 @@ def test_sweep(gov, vault, wbtc_strategy, token, amount, weth, weth_amout, vsp, 
     #     strategy.sweep(strategy.protectedToken(), {"from": gov})
 
     with brownie.reverts("!want"):
-         wbtc_strategy.sweep(token.address, {"from": gov})
+         strategy.sweep(token.address, {"from": gov})
     
     with brownie.reverts("!authorized"):
-         wbtc_strategy.sweep(token.address, {"from": user})
+         strategy.sweep(token.address, {"from": user})
 
-    weth.transfer(wbtc_strategy, weth.balanceOf(gov), {"from": gov})
-    assert weth.address != wbtc_strategy.want()
-    wbtc_strategy.sweep(weth, {"from": gov})
+    weth.transfer(strategy, weth.balanceOf(gov), {"from": gov})
+    assert weth.address != strategy.want()
+    strategy.sweep(weth, {"from": gov})
     assert weth.balanceOf(gov) > 0
 
 

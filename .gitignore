@@ -5,6 +5,7 @@ __pycache__
 build/
 reports/
 .env
+scripts/manual_deploy.py
 
 # Node/npm
 node_modules/

@@ -266,7 +266,7 @@ contract StrategyVesper is BaseStrategy {
             _sell(vspBal);
         }
 
-        uint256 unprotectedWant = skim(); // Returns usable balance after skimming for loss protection
+        uint256 unprotectedWant = skim(); // Updates loss protection value and returns unprotected balance
         uint256 inVesper = calcWantHeldInVesper();
         uint256 assets = inVesper.add(unprotectedWant).add(lossProtectionBalance);
         uint256 debt = vault.strategies(address(this)).totalDebt;
@@ -517,6 +517,12 @@ contract StrategyVesper is BaseStrategy {
         // Expressed in BIPS. 100% == 10_000
         require(_percentKeep <= BIPS, "!tooBig");
         percentKeep = _percentKeep;
+    }
+
+    function setLossProtectionBalance(uint256 _lossProtectionBalance) external onlyAuthorized {
+        // Handle with extreme care. 
+        // Should only ever be used to resolve specific accounting issues.
+        lossProtectionBalance = _lossProtectionBalance;
     }
 
     function protectedTokens() internal view override returns (address[] memory) {

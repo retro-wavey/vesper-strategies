@@ -59,7 +59,7 @@ def management(accounts):
 
 @pytest.fixture
 def strategist(accounts):
-    yield accounts[4]
+    yield "0x6AFB7c9a6E8F34a3E0eC6b734942a5589A84F44C"
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ def keeper(accounts):
 
 @pytest.fixture
 def amount(accounts, token, user, user2, whale, vault, gov):
-    amount = 1000 * 10 ** token.decimals()
+    amount = 100 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     mega = 1000 * 10 ** token.decimals()
@@ -112,37 +112,31 @@ def want_pool(vToken):
 
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, live_strategy, StrategyVesper, gov, want_pool, pool_rewards, vsp, uni_router, sushi_router, chain):
+def strategy(strategist, accounts, keeper, vault, live_strategy, StrategyVesper, gov, want_pool, pool_rewards, vsp, uni_router, sushi_router, chain):
     one_day = 86400
-    strategy = strategist.deploy(
-        StrategyVesper, 
-        vault,
-        want_pool,
-        pool_rewards,
-        1e16,
-        0,
-        5_000, # 50% percent keep,
-        "Vesper LINK"
-    )
-    strategy.setKeeper(keeper)
+    # strategy = strategist.deploy(
+    #     StrategyVesper, 
+    #     vault,
+    #     want_pool,
+    #     pool_rewards,
+    #     1e16,
+    #     0,
+    #     5_000, # 50% percent keep,
+    #     "Vesper LINK"
+    # )
+    # strategy.setKeeper(keeper)
     # Empty debtRatio from other strats to make room
-
-    vault.updateStrategyDebtRatio(live_strategy, 0, {"from": gov})
-    live_strategy.harvest({"from": gov})
-    chain.mine(1)
-
-    debt_ratio = 10_000                 # 98%
-    minDebtPerHarvest = 0             # Lower limit on debt add
-    maxDebtPerHarvest = 2 ** 256 - 1  # Upper limit on debt add
-    performance_fee = 1000            # Strategist perf fee: 10%
-
+    strategy = Contract("0xFB9030A52A420155D1266260271A0a8A23f4443A")
+    sms = accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)
+    aave_strat = "0xDb6DF092281718be78F41E7Fea328499dc6088D4"
+    vault.updateStrategyDebtRatio(aave_strat, 7_000, {"from": sms})
     vault.addStrategy(
-        strategy, 
-        debt_ratio, 
-        minDebtPerHarvest, 
-        maxDebtPerHarvest, 
-        performance_fee,
-        {"from": gov}
+        strategy,       # new strat
+        2_000,          # debtRatio
+        0,              # min
+        2 ** 256 - 1,   # max
+        1000,           # perf fee
+        {"from": sms}
     )
     
     yield strategy
